@@ -9,8 +9,8 @@ def from_num(x):
     return ret
 
 x = 0.1809189643531
-y = to_num(x)
-
+y = to_num(3)
+print(y)
 y = int(round(y))
 
 print(from_num(y))

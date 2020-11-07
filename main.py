@@ -8,65 +8,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zlib
 
+res = 1.7881393432617188e-07
 
-def compress_float(float32):
-    F16_EXPONENT_BITS = 0x1F
-    F16_EXPONENT_SHIFT = 10
-    F16_EXPONENT_BIAS = 15
-    F16_MANTISSA_BITS = 0x3ff
-    F16_MANTISSA_SHIFT = (23 - F16_EXPONENT_SHIFT)
-    F16_MAX_EXPONENT = (F16_EXPONENT_BITS << F16_EXPONENT_SHIFT)
+def to_num(x):
+    ret = x/res
+    ret = int(round(ret))
+    return ret
 
-    float32=float32*1000
-
-    a = struct.pack('>f', float32)
-    b = binascii.hexlify(a)
-
-    f32 = int(b, 16)
-    f16 = 0
-    sign = (f32 >> 16) & 0x8000
-    exponent = ((f32 >> 23) & 0xff) - 127
-    mantissa = f32 & 0x007fffff
-
-    if exponent == 128:
-        f16 = sign | F16_MAX_EXPONENT
-        if mantissa:
-            f16 |= (mantissa & F16_MANTISSA_BITS)
-    elif exponent > 15:
-        f16 = sign | F16_MAX_EXPONENT
-    elif exponent > -15:
-        exponent += F16_EXPONENT_BIAS
-        mantissa >>= F16_MANTISSA_SHIFT
-        f16 = sign | exponent << F16_EXPONENT_SHIFT | mantissa
-    else:
-        f16 = sign
-    return f16
-
-
-def decompress_float(float16):
-    s = int((float16 >> 15) & 0x00000001)  # sign
-    e = int((float16 >> 10) & 0x0000001f)  # exponent
-    f = int(float16 & 0x000003ff)  # fraction
-
-    if e == 0:
-        if f == 0:
-            return int(s << 31)
-        else:
-            while not (f & 0x00000400):
-                f = f << 1
-                e -= 1
-            e += 1
-            f &= ~0x00000400
-        # print(s,e,f)
-    elif e == 31:
-        if f == 0:
-            return int((s << 31) | 0x7f800000)
-        else:
-            return int((s << 31) | 0x7f800000 | (f << 13))
-
-    e = e + (127 - 15)
-    f = f << 13
-    return int((0 << 31) | (e << 23) | f)
+def from_num(x):
+    ret = res*x
+    return ret
 
 def get_size(filename):
     f = open(filename, 'rb')
@@ -137,10 +88,19 @@ def compress(infile, outfile):
 
     with open(outfile, "wb") as fout:
         for x in range(0,len(data['c1'])):
-            compressed_c2 = compress_float(data['c2'][x])
-            compressed_c4 = compress_float(data['c4'][x])
+            compressed_c2 = to_num(data['c2'][x])
+            compressed_c4 = to_num(data['c4'][x])
 
-            fout.write(struct.pack('>HH', compressed_c2, compressed_c4))
+            c1_1 = np.uint8(compressed_c2>>16)
+            c1_2 = np.uint8(compressed_c2>>8)
+            c1_3 = np.uint8(compressed_c2)
+
+            c2_1 = np.uint8(compressed_c4 >> 16)
+            c2_2 = np.uint8(compressed_c4 >> 8)
+            c2_3 = np.uint8(compressed_c4)
+
+            fout.write(struct.pack('BBBBBB', c1_1, c1_2,c1_3,c2_1,c2_2,c2_3))
+
     return data
 
 
@@ -167,7 +127,7 @@ def get_color(f1,f2):
 
 def decompress(infile):
     fin = open(infile, "rb")
-    ssize = struct.calcsize('>HH')
+    ssize = struct.calcsize('BBBBBB')
     output = dict()
     output['c1'] = []
     output['c2'] = []
@@ -180,18 +140,11 @@ def decompress(infile):
     while True:
         data = fin.read(ssize)
         if data:
-            values = struct.unpack('>HH', data)
-
-            c1 = decompress_float(values[0])
-            str = struct.pack('I', c1)
-            c1 = struct.unpack('f', str)[0]
-            c1 = c1/1000
+            values = struct.unpack('BBBBBB', data)
 
 
-            c2 = decompress_float(values[1])
-            str = struct.pack('I', c2)
-            c2 = struct.unpack('f', str)[0]
-            c2 = c2/1000
+            c1 = from_num((values[0]<<16)+(values[1]<<8)+values[2])
+            c2 = from_num((values[3]<<16)+(values[4]<<8)+values[5])
 
             #print values
             output['c1'].append(counter)
