@@ -7,9 +7,9 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import zlib
-from numcompress import compress as comp
+from numcompress import compress  as comp
 from numcompress import decompress as decomp
-
+import copy
 
 
 res = 1.7881393432617188e-07
@@ -96,14 +96,15 @@ def arry_to_one(arry,arrx):
 def compress(infile, outfile):
     data = load(infile)
 
+    oper_data = copy.deepcopy(data)
+    arr = arry_to_one(oper_data['c2'],oper_data['c4'])
 
-    arr = arry_to_one(data['c2'],data['c4'])
 
-    comprees_data = comp(arr,precision = 7)
 
-    with open(outfile, "w") as fout:
-        for x in comprees_data:
-            fout.write(comprees_data)
+    comprees_data = comp(arr,precision = 10)
+
+    with open(outfile, "wb") as fout:
+        fout.write(comprees_data.encode('ascii'))
     return data
 
 
@@ -139,21 +140,19 @@ def decompress(infile):
     output['c5'] = []
     output['c6'] = []
     output['c7'] = []
-    counter = 0
 
-    data = fin.read(ssize)
-    values = struct.unpack('ff', data)
-    c1 = values[0]
-    c2 = values[1]
 
-    ssize = struct.calcsize('f')
-    while True:
+    f = open(infile, "rb")
+    fileContent = f.read()
+    x = fileContent.decode('ascii')
+    data = decomp(x)
+    size = int((len(data))/2)
+    for x in range(0,size):
 
-        data = fin.read(ssize)
-        if data:
-            values = struct.unpack('f', data)
-            #print values
-            output['c1'].append(counter)
+            c1 = data[x]
+            c2 = data[x+size]
+
+            output['c1'].append(x)
             output['c2'].append(c1)
             output['c4'].append(c2)
             output['c5'].append(c1/c2)
@@ -161,13 +160,6 @@ def decompress(infile):
             color_num ,color = get_color(c1,c2)
             output['c3'].append(color)
             output['c7'].append(color_num)
-
-            c1 = c1 + values[0]
-            c2 = c2 + values[0]
-            counter = counter+1
-        else:
-            # end of file (or corupted file)
-            break
     fin.close()
     return output
 
@@ -179,14 +171,14 @@ data = compress('demo-real-med.txt', 'demo-real-med.bin')
 
 
 # dekomprese dat
-#out_data = decompress('demo-real-med.bin')
+out_data = decompress('demo-real-med.bin')
 
 # vyhodocení
 src_size = get_size('demo-real-med.txt')
 bin_size = get_size('demo-real-med.bin')
-#num_err = compare_data(data, out_data)
+num_err = compare_data(data, out_data)
 
-#print("Počet chyb: ", num_err)
+print("Počet chyb: ", num_err)
 print("Komprese:   ", src_size/bin_size)
 
 
