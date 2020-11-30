@@ -7,6 +7,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import zlib
+from numcompress import compress as comp
+from numcompress import decompress as decomp
+
+
 
 res = 1.7881393432617188e-07
 
@@ -25,6 +29,7 @@ def get_size(filename):
     num_bytes = f.tell()  # Get the file size
     f.close
     return num_bytes
+
 
 def compare_data(A, B):
     # compare dictionaries with real_data
@@ -83,24 +88,22 @@ def load(infile):
     fin.close()
     return data
 
+def arry_to_one(arry,arrx):
+    for x in arry:
+        arrx.append(x)
+    return arrx
+
 def compress(infile, outfile):
     data = load(infile)
 
-    with open(outfile, "wb") as fout:
-        for x in range(0,len(data['c1'])):
-            compressed_c2 = to_num(data['c2'][x])
-            compressed_c4 = to_num(data['c4'][x])
 
-            c1_1 = np.uint8(compressed_c2>>16)
-            c1_2 = np.uint8(compressed_c2>>8)
-            c1_3 = np.uint8(compressed_c2)
+    arr = arry_to_one(data['c2'],data['c4'])
 
-            c2_1 = np.uint8(compressed_c4 >> 16)
-            c2_2 = np.uint8(compressed_c4 >> 8)
-            c2_3 = np.uint8(compressed_c4)
+    comprees_data = comp(arr,precision = 7)
 
-            fout.write(struct.pack('BBBBBB', c1_1, c1_2,c1_3,c2_1,c2_2,c2_3))
-
+    with open(outfile, "w") as fout:
+        for x in comprees_data:
+            fout.write(comprees_data)
     return data
 
 
@@ -127,7 +130,7 @@ def get_color(f1,f2):
 
 def decompress(infile):
     fin = open(infile, "rb")
-    ssize = struct.calcsize('BBBBBB')
+    ssize = struct.calcsize('ff')
     output = dict()
     output['c1'] = []
     output['c2'] = []
@@ -137,15 +140,18 @@ def decompress(infile):
     output['c6'] = []
     output['c7'] = []
     counter = 0
+
+    data = fin.read(ssize)
+    values = struct.unpack('ff', data)
+    c1 = values[0]
+    c2 = values[1]
+
+    ssize = struct.calcsize('f')
     while True:
+
         data = fin.read(ssize)
         if data:
-            values = struct.unpack('BBBBBB', data)
-
-
-            c1 = from_num((values[0]<<16)+(values[1]<<8)+values[2])
-            c2 = from_num((values[3]<<16)+(values[4]<<8)+values[5])
-
+            values = struct.unpack('f', data)
             #print values
             output['c1'].append(counter)
             output['c2'].append(c1)
@@ -155,6 +161,9 @@ def decompress(infile):
             color_num ,color = get_color(c1,c2)
             output['c3'].append(color)
             output['c7'].append(color_num)
+
+            c1 = c1 + values[0]
+            c2 = c2 + values[0]
             counter = counter+1
         else:
             # end of file (or corupted file)
@@ -170,14 +179,14 @@ data = compress('demo-real-med.txt', 'demo-real-med.bin')
 
 
 # dekomprese dat
-out_data = decompress('demo-real-med.bin')
+#out_data = decompress('demo-real-med.bin')
 
 # vyhodocení
 src_size = get_size('demo-real-med.txt')
 bin_size = get_size('demo-real-med.bin')
-num_err = compare_data(data, out_data)
+#num_err = compare_data(data, out_data)
 
-print("Počet chyb: ", num_err)
+#print("Počet chyb: ", num_err)
 print("Komprese:   ", src_size/bin_size)
 
 
